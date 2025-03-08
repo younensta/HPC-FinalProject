@@ -63,7 +63,7 @@ def main():
 	# Simulation parameters
 	N         = 400     # Spatial resolution
 	t         = 0       # current time of the simulation
-	tEnd      = 1       # time at which simulation ends
+	tEnd      = 1      # time at which simulation ends
 	dt        = 0.001   # timestep
 	tOut      = 0.01    # draw frequency
 	nu        = 0.001   # viscosity
@@ -158,7 +158,7 @@ def main():
 	
 	t2 = time.time()	
 	print("Simulation finished")
-	print("Time taken: ", t2-t1)
+	print(f"Time taken: {t2-t1} seconds")
 	
 	# Save figure
 	plt.savefig('navier-stokes-spectral.png',dpi=240)	
