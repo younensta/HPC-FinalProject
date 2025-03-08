@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import time as time
+
 
 """
 Create Your Own Navier-Stokes Spectral Method Simulation (With Python)
@@ -55,10 +57,9 @@ def apply_dealias(f, dealias):
 	f_hat = dealias * np.fft.fftn(f)
 	return np.real(np.fft.ifftn( f_hat ))
 
-
 def main():
 	""" Navier-Stokes Simulation """
-	
+	print("Setting parameters and initializing domain...")
 	# Simulation parameters
 	N         = 400     # Spatial resolution
 	t         = 0       # current time of the simulation
@@ -66,7 +67,7 @@ def main():
 	dt        = 0.001   # timestep
 	tOut      = 0.01    # draw frequency
 	nu        = 0.001   # viscosity
-	plotRealTime = True # switch on for plotting as the simulation goes along
+	plotRealTime = False # switch on for plotting as the simulation goes along
 	
 	# Domain [0,1] x [0,1]
 	L = 1    
@@ -97,7 +98,9 @@ def main():
 	# prep figure
 	fig = plt.figure(figsize=(4,4), dpi=80)
 	outputCount = 1
-	
+
+	print("Starting simulation...")
+	t1 = time.time()
 	#Main Loop
 	for i in range(Nt):
 
@@ -132,9 +135,11 @@ def main():
 		
 		# update time
 		t += dt
-		print(t)
+		if (i%(Nt/10)==0):
+			print(f"Simulating... {100*i/Nt}%")
 		
 		# plot in real time
+		
 		plotThisTurn = False
 		if t + dt > outputCount*tOut:
 			plotThisTurn = True
@@ -150,12 +155,13 @@ def main():
 			ax.set_aspect('equal')	
 			plt.pause(0.001)
 			outputCount += 1
-			
-			
-	# Save figure
-	plt.savefig('navier-stokes-spectral.png',dpi=240)
-	plt.show()
 	
+	t2 = time.time()	
+	print("Simulation finished")
+	print("Time taken: ", t2-t1)
+	
+	# Save figure
+	plt.savefig('navier-stokes-spectral.png',dpi=240)	
 	return 0
 	
 
