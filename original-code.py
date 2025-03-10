@@ -2,169 +2,132 @@ import numpy as np
 import matplotlib.pyplot as plt
 import time as time
 
+def poisson_solve(rho_hat, kSq_inv):
+    """ Solve Poisson equation in Fourier space """
+    return -rho_hat * kSq_inv
 
-"""
-Create Your Own Navier-Stokes Spectral Method Simulation (With Python)
-Philip Mocz (2023), @PMocz
+def diffusion_solve(v_hat, dt, nu, kSq):
+    """ Solve diffusion equation in Fourier space """
+    return v_hat / (1.0 + dt * nu * kSq)
 
-Simulate the Navier-Stokes equations (incompressible viscous fluid) 
-with a Spectral method
+def grad(v_hat, kx, ky):
+    """ Compute gradient in Fourier space """
+    dvx_hat = 1j * kx * v_hat
+    dvy_hat = 1j * ky * v_hat
+    return dvx_hat, dvy_hat
 
-v_t + (v.nabla) v = nu * nabla^2 v + nabla P
-div(v) = 0
+def div(vx_hat, vy_hat, kx, ky):
+    """ Compute divergence in Fourier space """
+    return 1j * (kx * vx_hat + ky * vy_hat)
 
-"""
+def curl(vx_hat, vy_hat, kx, ky):
+    """ Compute curl in Fourier space """
+    return 1j * (kx * vy_hat - ky * vx_hat)
 
-
-def poisson_solve( rho, kSq_inv ):
-	""" solve the Poisson equation, given source field rho """
-	V_hat = -(np.fft.fftn( rho )) * kSq_inv
-	V = np.real(np.fft.ifftn(V_hat))
-	return V
-
-
-def diffusion_solve( v, dt, nu, kSq ):
-	""" solve the diffusion equation over a timestep dt, given viscosity nu """
-	v_hat = (np.fft.fftn( v )) / (1.0+dt*nu*kSq)
-	v = np.real(np.fft.ifftn(v_hat))
-	return v
-
-
-def grad(v, kx, ky):
-	""" return gradient of v """
-	v_hat = np.fft.fftn(v)
-	dvx = np.real(np.fft.ifftn( 1j*kx * v_hat))
-	dvy = np.real(np.fft.ifftn( 1j*ky * v_hat))
-	return dvx, dvy
-
-
-def div(vx, vy, kx, ky):
-	""" return divergence of (vx,vy) """
-	dvx_x = np.real(np.fft.ifftn( 1j*kx * np.fft.fftn(vx)))
-	dvy_y = np.real(np.fft.ifftn( 1j*ky * np.fft.fftn(vy)))
-	return dvx_x + dvy_y
-
-
-def curl(vx, vy, kx, ky):
-	""" return curl of (vx,vy) """
-	dvx_y = np.real(np.fft.ifftn( 1j*ky * np.fft.fftn(vx)))
-	dvy_x = np.real(np.fft.ifftn( 1j*kx * np.fft.fftn(vy)))
-	return dvy_x - dvx_y
-
-
-def apply_dealias(f, dealias):
-	""" apply 2/3 rule dealias to field f """
-	f_hat = dealias * np.fft.fftn(f)
-	return np.real(np.fft.ifftn( f_hat ))
+def apply_dealias(f_hat, dealias):
+    """ Apply 2/3 rule dealiasing """
+    return dealias * f_hat
 
 def main():
-	""" Navier-Stokes Simulation """
-	print("Setting parameters and initializing domain...")
-	# Simulation parameters
-	N         = 400     # Spatial resolution
-	t         = 0       # current time of the simulation
-	tEnd      = 1      # time at which simulation ends
-	dt        = 0.001   # timestep
-	tOut      = 0.01    # draw frequency
-	nu        = 0.001   # viscosity
-	plotRealTime = False # switch on for plotting as the simulation goes along
-	
-	# Domain [0,1] x [0,1]
-	L = 1    
-	xlin = np.linspace(0,L, num=N+1)  # Note: x=0 & x=1 are the same point!
-	xlin = xlin[0:N]                  # chop off periodic point
-	xx, yy = np.meshgrid(xlin, xlin)
-	
-	# Intial Condition (vortex)
-	vx = -np.sin(2*np.pi*yy)
-	vy =  np.sin(2*np.pi*xx*2) 
-	
-	# Fourier Space Variables
-	klin = 2.0 * np.pi / L * np.arange(-N/2, N/2)
-	kmax = np.max(klin)
-	kx, ky = np.meshgrid(klin, klin)
-	kx = np.fft.ifftshift(kx)
-	ky = np.fft.ifftshift(ky)
-	kSq = kx**2 + ky**2
-	kSq_inv = 1.0 / kSq
-	kSq_inv[kSq==0] = 1
-	
-	# dealias with the 2/3 rule
-	dealias = (np.abs(kx) < (2./3.)*kmax) & (np.abs(ky) < (2./3.)*kmax)
-	
-	# number of timesteps
-	Nt = int(np.ceil(tEnd/dt))
-	
-	# prep figure
-	fig = plt.figure(figsize=(4,4), dpi=80)
-	outputCount = 1
+    """ Optimized Navier-Stokes Simulation """
+    print("Setting parameters and initializing domain...")
+    
+    # Simulation parameters
+    N = 400
+    t = 0
+    tEnd = 1
+    dt = 0.001
+    tOut = 0.01
+    nu = 0.001
+    plotRealTime = True
+    
+    # Domain setup
+    L = 1    
+    xlin = np.linspace(0, L, num=N+1)[:-1]  # Remove duplicate point
+    xx, yy = np.meshgrid(xlin, xlin)
+    
+    # Initial condition (vortex)
+    vx = -np.sin(2 * np.pi * yy)
+    vy = np.sin(2 * np.pi * xx * 2)
+    
+    # Fourier space variables
+    klin = 2.0 * np.pi / L * np.fft.fftfreq(N, d=1/N)
+    kx, ky = np.meshgrid(klin, klin)
+    kSq = kx**2 + ky**2
+    kSq_inv = np.zeros_like(kSq)
+    kSq_inv[kSq > 0] = 1.0 / kSq[kSq > 0]
+    
+    dealias = (np.abs(kx) < (2./3.)*np.max(klin)) & (np.abs(ky) < (2./3.)*np.max(klin))
+    
+    # Transform initial condition to Fourier space
+    vx_hat = np.fft.fftn(vx)
+    vy_hat = np.fft.fftn(vy)
+    
+    Nt = int(np.ceil(tEnd / dt))
+    fig = plt.figure(figsize=(4, 4), dpi=80)
+    outputCount = 1
+    
+    print("Starting simulation...")
+    t1 = time.time()
+    
+    for i in range(Nt):
+        # Compute gradients in Fourier space
+        dvx_x_hat, dvx_y_hat = grad(vx_hat, kx, ky)
+        dvy_x_hat, dvy_y_hat = grad(vy_hat, kx, ky)
+        
+        # Compute RHS of momentum equation in Fourier space
+        rhs_x_hat = -np.fft.fftn(np.real(np.fft.ifftn(vx_hat)) * np.real(np.fft.ifftn(dvx_x_hat)) +
+                                 np.real(np.fft.ifftn(vy_hat)) * np.real(np.fft.ifftn(dvx_y_hat)))
+        rhs_y_hat = -np.fft.fftn(np.real(np.fft.ifftn(vx_hat)) * np.real(np.fft.ifftn(dvy_x_hat)) +
+                                 np.real(np.fft.ifftn(vy_hat)) * np.real(np.fft.ifftn(dvy_y_hat)))
+        
+        rhs_x_hat = apply_dealias(rhs_x_hat, dealias)
+        rhs_y_hat = apply_dealias(rhs_y_hat, dealias)
+        
+        vx_hat += dt * rhs_x_hat
+        vy_hat += dt * rhs_y_hat
+        
+        # Poisson solve for pressure
+        div_rhs_hat = div(rhs_x_hat, rhs_y_hat, kx, ky)
+        P_hat = poisson_solve(div_rhs_hat, kSq_inv)
+        dPx_hat, dPy_hat = grad(P_hat, kx, ky)
+        
+        # Correction step
+        vx_hat -= dt * dPx_hat
+        vy_hat -= dt * dPy_hat
+        
+        # Diffusion step
+        vx_hat = diffusion_solve(vx_hat, dt, nu, kSq)
+        vy_hat = diffusion_solve(vy_hat, dt, nu, kSq)
+        
+        # Compute vorticity for plotting
+        wz_hat = curl(vx_hat, vy_hat, kx, ky)
+        wz = np.real(np.fft.ifftn(wz_hat))
+        
+        t += dt
+        if (i % (Nt // 10) == 0):
+            print(f"Simulating... {100 * i / Nt}%")
+        
+        # Real-time plotting
+        plotThisTurn = t + dt > outputCount * tOut
+        if (plotRealTime and plotThisTurn) or (i == Nt - 1):
+            plt.cla()
+            plt.imshow(wz, cmap='RdBu')
+            plt.clim(-20, 20)
+            ax = plt.gca()
+            ax.invert_yaxis()
+            ax.get_xaxis().set_visible(False)
+            ax.get_yaxis().set_visible(False)
+            ax.set_aspect('equal')
+            plt.pause(0.001)
+            outputCount += 1
+    
+    t2 = time.time()
+    print("Simulation finished")
+    print(f"Time taken: {t2 - t1} seconds")
+    
+    plt.savefig('navier-stokes-spectral.png', dpi=240)
+    return 0
 
-	print("Starting simulation...")
-	t1 = time.time()
-	#Main Loop
-	for i in range(Nt):
-
-		# Advection: rhs = -(v.grad)v
-		dvx_x, dvx_y = grad(vx, kx, ky)
-		dvy_x, dvy_y = grad(vy, kx, ky)
-		
-		rhs_x = -(vx * dvx_x + vy * dvx_y)
-		rhs_y = -(vx * dvy_x + vy * dvy_y)
-		
-		rhs_x = apply_dealias(rhs_x, dealias)
-		rhs_y = apply_dealias(rhs_y, dealias)
-
-		vx += dt * rhs_x
-		vy += dt * rhs_y
-		
-		# Poisson solve for pressure
-		div_rhs = div(rhs_x, rhs_y, kx, ky)
-		P = poisson_solve( div_rhs, kSq_inv )
-		dPx, dPy = grad(P, kx, ky)
-		
-		# Correction (to eliminate divergence component of velocity)
-		vx += - dt * dPx
-		vy += - dt * dPy
-		
-		# Diffusion solve (implicit)
-		vx = diffusion_solve( vx, dt, nu, kSq )
-		vy = diffusion_solve( vy, dt, nu, kSq )
-		
-		# vorticity (for plotting)
-		wz = curl(vx, vy, kx, ky)
-		
-		# update time
-		t += dt
-		if (i%(Nt/10)==0):
-			print(f"Simulating... {100*i/Nt}%")
-		
-		# plot in real time
-		
-		plotThisTurn = False
-		if t + dt > outputCount*tOut:
-			plotThisTurn = True
-		if (plotRealTime and plotThisTurn) or (i == Nt-1):
-			
-			plt.cla()
-			plt.imshow(wz, cmap = 'RdBu')
-			plt.clim(-20,20)
-			ax = plt.gca()
-			ax.invert_yaxis()
-			ax.get_xaxis().set_visible(False)
-			ax.get_yaxis().set_visible(False)	
-			ax.set_aspect('equal')	
-			plt.pause(0.001)
-			outputCount += 1
-	
-	t2 = time.time()	
-	print("Simulation finished")
-	print(f"Time taken: {t2-t1} seconds")
-	
-	# Save figure
-	plt.savefig('navier-stokes-spectral.png',dpi=240)	
-	return 0
-	
-
-
-if __name__== "__main__":
-  main()
+if __name__ == "__main__":
+    main()
