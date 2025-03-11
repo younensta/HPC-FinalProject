@@ -39,7 +39,7 @@ def main():
     dt = 0.001
     tOut = 0.01
     nu = 0.001
-    plotRealTime = True
+    plotRealTime = False
     
     # Domain setup
     L = 1    
@@ -78,6 +78,7 @@ def main():
         # Compute RHS of momentum equation in Fourier space
         rhs_x_hat = -np.fft.fftn(np.real(np.fft.ifftn(vx_hat)) * np.real(np.fft.ifftn(dvx_x_hat)) +
                                  np.real(np.fft.ifftn(vy_hat)) * np.real(np.fft.ifftn(dvx_y_hat)))
+        
         rhs_y_hat = -np.fft.fftn(np.real(np.fft.ifftn(vx_hat)) * np.real(np.fft.ifftn(dvy_x_hat)) +
                                  np.real(np.fft.ifftn(vy_hat)) * np.real(np.fft.ifftn(dvy_y_hat)))
         
@@ -101,8 +102,9 @@ def main():
         vy_hat = diffusion_solve(vy_hat, dt, nu, kSq)
         
         # Compute vorticity for plotting
-        wz_hat = curl(vx_hat, vy_hat, kx, ky)
-        wz = np.real(np.fft.ifftn(wz_hat))
+        if plotRealTime or (i == Nt - 1):
+            wz_hat = curl(vx_hat, vy_hat, kx, ky)
+            wz = np.real(np.fft.ifftn(wz_hat))
         
         t += dt
         if (i % (Nt // 10) == 0):
