@@ -76,11 +76,14 @@ def main():
         dvy_x_hat, dvy_y_hat = grad(vy_hat, kx, ky)
         
         # Compute RHS of momentum equation in Fourier space
-        rhs_x_hat = -np.fft.fftn(np.real(np.fft.ifftn(vx_hat)) * np.real(np.fft.ifftn(dvx_x_hat)) +
-                                 np.real(np.fft.ifftn(vy_hat)) * np.real(np.fft.ifftn(dvx_y_hat)))
+        ifft_vx = np.real(np.fft.ifftn(vx_hat))
+        ifft_vy = np.real(np.fft.ifftn(vy_hat))
+
+        rhs_x_hat = -np.fft.fftn(ifft_vx * np.real(np.fft.ifftn(dvx_x_hat)) +
+                                 ifft_vy * np.real(np.fft.ifftn(dvx_y_hat)))
         
-        rhs_y_hat = -np.fft.fftn(np.real(np.fft.ifftn(vx_hat)) * np.real(np.fft.ifftn(dvy_x_hat)) +
-                                 np.real(np.fft.ifftn(vy_hat)) * np.real(np.fft.ifftn(dvy_y_hat)))
+        rhs_y_hat = -np.fft.fftn(ifft_vx * np.real(np.fft.ifftn(dvy_x_hat)) +
+                                 ifft_vy * np.real(np.fft.ifftn(dvy_y_hat)))
         
         rhs_x_hat = apply_dealias(rhs_x_hat, dealias)
         rhs_y_hat = apply_dealias(rhs_y_hat, dealias)
